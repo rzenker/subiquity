@@ -162,9 +162,11 @@ class InstallProgressController(BaseController):
 
         self.install_state = InstallState.RUNNING_INSTALL
 
-        self.start_journald_forwarder()
+        ident = "curtin_event_%s" % (os.getpid(),)
 
-        self.event_listen_handle = self.start_journald_listener("curtin_event", self.curtin_event)
+        self.start_journald_forwarder(ident)
+
+        self.event_listen_handle = self.start_journald_listener(ident, self.curtin_event)
 
         self.curtin_spin()
 
@@ -262,13 +264,13 @@ class InstallProgressController(BaseController):
         tail = self.tail_proc.stdout.read().decode('utf-8', 'replace')
         self.progress_view.add_log_tail(tail)
 
-    def start_journald_forwarder(self):
+    def start_journald_forwarder(self, ident):
         log.debug("starting curtin journald forwarder")
         if "SNAP" in os.environ and sys.executable.startswith(os.environ["SNAP"]):
             script = os.path.join(os.environ["SNAP"], 'usr/bin/curtin-journald-forwarder')
         else:
             script = './bin/curtin-journald-forwarder'
-        self.journald_forwarder_proc = utils.run_command_start([script])
+        self.journald_forwarder_proc = utils.run_command_start([script, ident])
         self.reporting_url = self.journald_forwarder_proc.stdout.readline().decode('utf-8').strip()
         log.debug("curtin journald forwarder listening on %s", self.reporting_url)
 

@@ -4,6 +4,8 @@ from http import server
 import json
 import socket
 import socketserver
+import sys
+
 from systemd import journal
 
 
@@ -31,7 +33,7 @@ class Handler(server.BaseHTTPRequestHandler):
             PRIORITY=level,
             CURTIN_EVENT_TYPE=event["event_type"],
             CURTIN_NAME=event["name"],
-            SYSLOG_IDENTIFIER="curtin_event",
+            SYSLOG_IDENTIFIER=self.server.ident,
             )
 
 
@@ -39,13 +41,14 @@ class HTTPServerV6(socketserver.TCPServer):
     address_family = socket.AF_INET6
 
 
-def main():
+def main(ident):
     """Return URL to pass to curtin."""
     httpd = HTTPServerV6(("::", 0), Handler)
+    httpd.ident = ident
     port = httpd.server_address[1]
     print("http://[::1]:{}/".format(port), flush=True)
     httpd.serve_forever()
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1])
