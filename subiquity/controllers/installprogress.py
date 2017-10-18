@@ -65,6 +65,13 @@ class InstallProgressController(BaseController):
         self.tail_proc = None
         self.journald_forwarder_proc = None
         self.curtin_event_stack = []
+        self.curtin_curstage = ""
+        self.curtin_dots = ""
+        self.curtin_desc = ""
+        self.curtin_spintext = "-\|/"
+        self.curtin_spinindex = 0
+        self.curtin_spin_handle = None
+        self.event_listen_handle = None
 
     def curtin_wrote_network_config(self, path):
         curtin_write_network_config(open(path).read())
@@ -96,24 +103,47 @@ class InstallProgressController(BaseController):
             log.debug("completed %s", cmd)
         return cp.returncode
 
+    def curtin_spin(self, sender=None, userdata=None):
+        self.curtin_spinindex = (self.curtin_spinindex + 1)%len(self.curtin_spintext)
+        footer = 'Install running "%s"%s%s %s'%(
+            self.curtin_curstage,
+            self.curtin_dots,
+            self.curtin_desc,
+            self.curtin_spintext[self.curtin_spinindex],
+            )
+        self.ui.set_footer(footer)
+        self.curtin_spin_handle = self.loop.set_alarm_in(0.1, self.curtin_spin)
+
     def curtin_event(self, event):
+        if self.progress_view is not None:
+            return
         event_type = event.get("CURTIN_EVENT_TYPE")
-        if random.randrange(1000) == 0 or len(event) > 0:
-            log.debug("got curtin event from journald: %r", event)
         if event_type not in ['start', 'finish']:
             return
         if event_type == 'start':
             desc = event["MESSAGE"]
-            self.curtin_event_stack.append(desc)
-        if event_type == 'finish':
-            if not self.curtin_event_stack:
-                return
-            self.curtin_event_stack.pop()
-            if self.curtin_event_stack:
-                desc = self.curtin_event_stack[-1]
+            name = event['CURTIN_NAME']
+            parts = name.split('/')
+            if len(parts) > 1 and parts[1].startswith("stage-"):
+                stage = parts[1][len("stage-"):]
             else:
-                desc = ""
-        self.ui.set_footer("Running install... %s" % (desc,))
+                stage = '???'
+            self.curtin_event_stack.append(desc)
+            if stage == self.curtin_curstage:
+                self.curtin_desc = ' ' + desc
+            else:
+                self.curtin_curstage = stage
+                self.curtin_desc = ''
+                self.curtin_dots = ''
+
+        if event_type == 'finish':
+            if self.curtin_event_stack:
+                self.curtin_event_stack.pop()
+                if self.curtin_event_stack:
+                    self.curtin_desc = " " + self.curtin_event_stack[-1]
+                    if len(self.curtin_dots) == 0:
+                        self.curtin_dots = ' '
+                    self.curtin_dots += '.'
 
     def start_journald_listener(self, identifier, callback):
         reader = journal.Reader()
@@ -124,7 +154,7 @@ class InstallProgressController(BaseController):
                 return
             for event in reader:
                 callback(event)
-        self.loop.watch_file(reader.fileno(), watch)
+        return self.loop.watch_file(reader.fileno(), watch)
 
     def curtin_start_install(self):
         log.debug('Curtin Install: calling curtin with '
@@ -134,7 +164,9 @@ class InstallProgressController(BaseController):
 
         self.start_journald_forwarder()
 
-        self.start_journald_listener("curtin_event", self.curtin_event)
+        self.event_listen_handle = self.start_journald_listener("curtin_event", self.curtin_event)
+
+        self.curtin_spin()
 
         curtin_write_reporting_config(self.reporting_url)
 
@@ -157,6 +189,10 @@ class InstallProgressController(BaseController):
         self.run_in_bg(lambda: self.run_command_logged(curtin_cmd, CURTIN_INSTALL_LOG), self.curtin_install_completed)
 
     def curtin_install_completed(self, fut):
+        if self.curtin_spin_handle is not None:
+            self.loop.remove_alarm(self.curtin_spin_handle)
+            self.curtin_spin_handle = None
+            self.ui.set_footer("Install completed.")
         returncode = fut.result()
         log.debug('curtin_install: returncode: {}'.format(returncode))
         self.stop_tail_proc()
@@ -164,6 +200,7 @@ class InstallProgressController(BaseController):
             self.install_state = InstallState.ERROR_INSTALL
             self.curtin_error()
             return
+        self.ui.set_footer('Install complete.')
         self.install_state = InstallState.DONE_INSTALL
         log.debug('After curtin install OK')
         if self.postinstall_written:
@@ -277,6 +314,9 @@ class InstallProgressController(BaseController):
         title = _("Installing system")
         excerpt = _("Please wait for the installation to finish.")
         footer = _("Thank you for using Ubuntu!")
+        if self.curtin_spin_handle is not None:
+            self.loop.remove_alarm(self.curtin_spin_handle)
+            self.curtin_spin_handle = None
         self.ui.set_header(title, excerpt)
         self.ui.set_footer(footer)
         self.progress_view = ProgressView(self.model, self)
