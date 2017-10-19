@@ -71,7 +71,7 @@ class ProgressView(BaseView):
 
         self.event_spinner = Spinner(controller.loop)
         self.event_spinner.start()
-        self.event_listwalker = SimpleFocusListWalker([self.event_spinner])
+        self.event_listwalker = SimpleFocusListWalker([])
         self.eventbox = MyLineBox(ListBox(self.event_listwalker))
         self.reboot_btn = ok_btn(label=_("Reboot Now"), on_press=self.reboot)
         self.exit_btn = cancel_btn(label=_("Exit To Shell"), on_press=self.quit)
@@ -95,35 +95,52 @@ class ProgressView(BaseView):
 
     def clear_log_tail(self):
         self.log_listwalker[:] = []
-        self.event_listwalker[:] = [self.event_spinner]
+        self.event_listwalker[:] = [Columns([(2, Text("")), self.event_spinner])]
+        self.indent = 2
 
     def new_stage(self, stage):
-        cur_last = self.event_listwalker[-1]
-        if isinstance(cur_last, Columns):
-            pass
-        del self.event_listwalker[-1]
+        c = self.event_listwalker[-1]
+        if len(c.contents) == 3:
+            del c.contents[2]
+        else:
+            del self.event_listwalker[-1]
         self.event_listwalker.append(Text(stage))
-        self.event_listwalker.append(Columns([(2, Text("")), self.event_spinner]))
+        self.indent = 2
+        self.event_listwalker.append(Columns([(self.indent, Text("")), self.event_spinner]))
+        self.event_listwalker.set_focus(len(self.event_listwalker) - 1)
 
     def start(self, desc):
         c = self.event_listwalker[-1]
         if len(c.contents) == 2:
             c.contents[1:1] = [(Text(desc + " "), c.options('pack'))]
+            self.indent += 2
         else:
-            self.event_listwalker.append(Columns([(2, Text("")), Text(desc + " "), self.event_spinner]))
+            if isinstance(c, Columns) and len(c.contents) == 3:
+                del c.contents[2]
+            self.event_listwalker.append(Columns([(self.indent, Text("")), Text(desc + " "), self.event_spinner]))
+            self.event_listwalker.set_focus(len(self.event_listwalker) - 1)
+            self.indent += 2
 
     def end(self):
-        del self.event_listwalker[-1].contents[2]
-        self.event_listwalker.append(Columns([(2, Text("")), self.event_spinner]))
+        c = self.event_listwalker[-1]
+        if len(c.contents) == 3:
+            del c.contents[2]
+        self.indent -= 2
+        if c.contents[1][0] != self.event_spinner:
+            self.event_listwalker.append(Columns([(self.indent, Text("")), self.event_spinner]))
+        self.event_listwalker.set_focus(len(self.event_listwalker) - 1)
 
     def set_status(self, text):
         self.eventbox.set_title(text)
 
     def show_complete(self, include_exit=False):
+        o = self.event_buttons.base_widget.options('pack')
         c = self.event_buttons.base_widget.contents
-        c[0:0] = [self.reboot_btn]
+        c[0:0] = [(self.reboot_btn, o)]
         if include_exit:
-            c[1:1] = [self.exit_btn]
+            c[1:1] = [(self.exit_btn, o)]
+        self.event_spinner.stop()
+        self.event_spinner.set_text("")
         self.event_pile.focus_position = 3
         self.event_buttons.base_widget.focus_position = 0
 

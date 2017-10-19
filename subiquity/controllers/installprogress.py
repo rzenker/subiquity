@@ -118,6 +118,7 @@ class InstallProgressController(BaseController):
         event_type = event.get("CURTIN_EVENT_TYPE")
         if event_type not in ['start', 'finish']:
             return
+        log.debug("curtin_event %s %s %s", event_type, event['CURTIN_NAME'], event["MESSAGE"])
         if event_type == 'start':
             desc = event["MESSAGE"]
             name = event['CURTIN_NAME']
@@ -139,10 +140,10 @@ class InstallProgressController(BaseController):
                 self.curtin_dots = ''
 
         if event_type == 'finish':
+            if self.progress_view is not None:
+                self.progress_view.end()
             if self.curtin_event_stack:
                 self.curtin_event_stack.pop()
-                if self.progress_view is not None:
-                    self.progress_view.end()
                 if self.curtin_event_stack:
                     self.curtin_desc = " " + self.curtin_event_stack[-1]
                     if len(self.curtin_dots) == 0:
@@ -198,7 +199,8 @@ class InstallProgressController(BaseController):
         if self.curtin_spin_handle is not None:
             self.loop.remove_alarm(self.curtin_spin_handle)
             self.curtin_spin_handle = None
-            self.ui.set_footer("Install completed.")
+            if self.progress_view is not None:
+                self.ui.set_footer("Install completed.")
         returncode = fut.result()
         log.debug('curtin_install: returncode: {}'.format(returncode))
         self.stop_tail_proc()
