@@ -41,7 +41,7 @@ class Header(WidgetWrap):
                 Text(""),
             ]
         else:
-            widgets = [Text("")]
+            widgets = []
         w = Pile([w] + widgets)
         super().__init__(w)
 

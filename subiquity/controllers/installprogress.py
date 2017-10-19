@@ -314,12 +314,11 @@ class InstallProgressController(BaseController):
     def default(self):
         log.debug('show_progress called')
         title = _("Installing system")
-        excerpt = _("Please wait for the installation to finish.")
         footer = _("Thank you for using Ubuntu!")
         if self.curtin_spin_handle is not None:
             self.loop.remove_alarm(self.curtin_spin_handle)
             self.curtin_spin_handle = None
-        self.ui.set_header(title, excerpt)
+        self.ui.set_header(title)
         self.ui.set_footer(footer)
         self.progress_view = ProgressView(self.model, self)
         if self.install_state < 0:
@@ -327,9 +326,9 @@ class InstallProgressController(BaseController):
             self.ui.set_body(self.progress_view)
             return
         if self.install_state < InstallState.RUNNING_POSTINSTALL:
-            self.progress_view.set_status(_("Running install step"))
+            self.progress_view.set_status(_("Installing system"))
         else:
-            self.progress_view.set_status(_("Running postinstall step"))
+            self.progress_view.set_status(_("Configuring users and groups"))
         self.ui.set_body(self.progress_view)
 
         self.start_tail_proc()
