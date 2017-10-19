@@ -22,7 +22,7 @@ from urwid import (
 
 from subiquitycore.view import BaseView
 from subiquitycore.ui.buttons import cancel_btn, ok_btn, reset_btn
-from subiquitycore.ui.container import ListBox, Pile
+from subiquitycore.ui.container import Columns, ListBox, Pile
 from subiquitycore.ui.utils import button_pile, Padding
 
 log = logging.getLogger("subiquity.views.installprogress")
@@ -33,6 +33,27 @@ class MyLineBox(LineBox):
             return [" ", title, " "]
         else:
             return ""
+
+class Spinner(Text):
+    def __init__(self, loop):
+        self.loop = loop
+        self.spin_index = 0
+        self.spin_text = r'-\|/'
+        super().__init__(self.spin_text[0])
+        self.handle = None
+
+    def _advance(self, sender, user_data):
+        self.spin_index = (self.spin_index + 1)%len(self.spin_text)
+        self.set_text(self.spin_text[self.spin_index])
+        self.handle = self.loop.set_alarm_in(0.1, self._advance)
+
+    def start(self):
+        self.handle = self.loop.set_alarm_in(0.1, self._advance)
+
+    def stop(self):
+        if self.handle is not None:
+            self.loop.remove_alarm(self.handle)
+            self.handle = None
 
 
 class ProgressView(BaseView):
@@ -48,7 +69,9 @@ class ProgressView(BaseView):
             ('pack', button_pile([self.close_log_btn])),
             ]), "Raw Curtin Logs")
 
-        self.event_listwalker = SimpleFocusListWalker([])
+        self.event_spinner = Spinner(controller.loop)
+        self.event_spinner.start()
+        self.event_listwalker = SimpleFocusListWalker([self.event_spinner])
         self.eventbox = MyLineBox(ListBox(self.event_listwalker))
         self.reboot_btn = ok_btn(label=_("Reboot Now"), on_press=self.reboot)
         self.exit_btn = cancel_btn(label=_("Exit To Shell"), on_press=self.quit)
@@ -72,10 +95,26 @@ class ProgressView(BaseView):
 
     def clear_log_tail(self):
         self.log_listwalker[:] = []
-        self.event_listwalker[:] = []
+        self.event_listwalker[:] = [self.event_spinner]
 
     def new_stage(self, stage):
+        cur_last = self.event_listwalker[-1]
+        if isinstance(cur_last, Columns):
+            pass
+        del self.event_listwalker[-1]
         self.event_listwalker.append(Text(stage))
+        self.event_listwalker.append(Columns([(2, Text("")), self.event_spinner]))
+
+    def start(self, desc):
+        c = self.event_listwalker[-1]
+        if len(c.contents) == 2:
+            c.contents[1:1] = [(Text(desc + " "), c.options('pack'))]
+        else:
+            self.event_listwalker.append(Columns([(2, Text("")), Text(desc + " "), self.event_spinner]))
+
+    def end(self):
+        del self.event_listwalker[-1].contents[2]
+        self.event_listwalker.append(Columns([(2, Text("")), self.event_spinner]))
 
     def set_status(self, text):
         self.eventbox.set_title(text)

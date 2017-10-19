@@ -68,7 +68,7 @@ class InstallProgressController(BaseController):
         self.curtin_curstage = ""
         self.curtin_dots = ""
         self.curtin_desc = ""
-        self.curtin_spintext = "-\|/"
+        self.curtin_spintext = r"-\|/"
         self.curtin_spinindex = 0
         self.curtin_spin_handle = None
         self.event_listen_handle = None
@@ -115,8 +115,6 @@ class InstallProgressController(BaseController):
         self.curtin_spin_handle = self.loop.set_alarm_in(0.1, self.curtin_spin)
 
     def curtin_event(self, event):
-        if self.progress_view is not None:
-            return
         event_type = event.get("CURTIN_EVENT_TYPE")
         if event_type not in ['start', 'finish']:
             return
@@ -131,7 +129,11 @@ class InstallProgressController(BaseController):
             self.curtin_event_stack.append(desc)
             if stage == self.curtin_curstage:
                 self.curtin_desc = ' ' + desc
+                if self.progress_view is not None:
+                    self.progress_view.start(desc)
             else:
+                if self.progress_view is not None:
+                    self.progress_view.new_stage(stage)
                 self.curtin_curstage = stage
                 self.curtin_desc = ''
                 self.curtin_dots = ''
@@ -139,6 +141,8 @@ class InstallProgressController(BaseController):
         if event_type == 'finish':
             if self.curtin_event_stack:
                 self.curtin_event_stack.pop()
+                if self.progress_view is not None:
+                    self.progress_view.end()
                 if self.curtin_event_stack:
                     self.curtin_desc = " " + self.curtin_event_stack[-1]
                     if len(self.curtin_dots) == 0:
