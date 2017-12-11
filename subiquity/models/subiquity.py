@@ -55,6 +55,7 @@ class SubiquityModel:
         return {
             'users': [user_info],
             'hostname': self.identity.hostname,
+            'runcmd': [['netplan', 'apply']],
         }
 
     def _write_files_config(self):
