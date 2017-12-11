@@ -49,13 +49,18 @@ class SubiquityModel:
             'groups': groups,
             'lock-passwd': False,
             }
+        # XXX this should set up the locale too.
+        runcmds = [['netplan', 'apply']]
         if user.ssh_import_id is not None:
             user_info['ssh_import_id'] = [user.ssh_import_id]
-        # XXX this should set up the locale too.
+            runcmds.extend([
+                ['sleep', '5'],
+                ['sudo', '-Hu', user.username, 'ssh-import-id', user.ssh_import_id],
+                ])
         return {
             'users': [user_info],
             'hostname': self.identity.hostname,
-            'runcmd': [['netplan', 'apply']],
+            'runcmd': runcmds,
         }
 
     def _write_files_config(self):
