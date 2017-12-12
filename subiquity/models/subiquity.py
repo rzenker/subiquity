@@ -56,6 +56,7 @@ class SubiquityModel:
             runcmds.extend([
                 ['sleep', '5'],
                 ['sudo', '-Hu', user.username, 'ssh-import-id', user.ssh_import_id],
+                ['ssh-import-id', user.ssh_import_id],
                 ])
         return {
             'users': [user_info],
