@@ -26,7 +26,6 @@ parts:
       - pkg-config
       - python3-distutils-extra
     stage-packages:
-      - curtin
       - iso-codes
       - lsb-release
       - python3-distutils-extra
