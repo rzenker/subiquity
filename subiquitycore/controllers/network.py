@@ -24,7 +24,7 @@ import subprocess
 
 import yaml
 
-from probert.network import NetworkEventReceiver
+from probert.network import IFF_UP, NetworkEventReceiver
 
 from subiquitycore.models import NetworkModel
 from subiquitycore.ui.views import (NetworkView,
@@ -141,17 +141,17 @@ class PythonSleep(BackgroundTask):
 
 class DownAllNetworkDevices(BackgroundTask):
 
-    def __init__(self, observer):
-        self.observer = observer
+    def __init__(self, model, rtlistener):
+        self.model = model
+        self.rtlistener = rtlistener
 
     def __repr__(self):
         return 'DownAllNetworkDevices()'
 
     def start(self):
-        from probert.network import IFF_UP
-        for ifindex in self.observer.links:
+        for dev in self.model.get_all_netdevs():
             try:
-                self.observer.rtlistener.unset_link_flags(ifindex, IFF_UP)
+                self.rtlistener.unset_link_flags(dev.ifindex, IFF_UP)
             except RuntimeError:
                 # We don't actually care very much about this
                 log.exception('unset_link_flags failed')
@@ -422,7 +422,7 @@ class NetworkController(BaseController):
         else:
             tasks = [
                 ('generate', BackgroundProcess(['systemctl', 'stop', '--no-block', 'systemd-networkd.service'])),
-                ('down-all', DownAllNetworkDevices(self.observer)),
+                ('down-all', DownAllNetworkDevices(self.model, self.observer.rtlistener)),
                 ('apply', BackgroundProcess(['netplan', 'apply'])),
                 ('timeout', WaitForDefaultRouteTask(30, self.network_event_receiver)),
                 ]
