@@ -462,3 +462,77 @@ class ScrollBarListBox(FocusTrackingListBox):
 
 
 ListBox = ScrollBarListBox
+
+class MyOverlay(urwid.Widget):
+    _selectable = True
+    _sizing = frozenset([urwid.BOX])
+    def __init__(self, bottom_w):
+        self.bottom_w = bottom_w
+        self.top_w = None
+        self.top_stretchy_index = None
+
+    def show_my_overlay(self, title, widgets, stretchy_index):
+        self.top_stretchy_index = stretchy_index
+        def entry(i, w):
+            if i == stretchy_index:
+                return ('weight', 1, ListBox([w]))
+            else:
+                return ('pack', w)
+        self.top_w = urwid.Filler(
+            urwid.Padding(
+                urwid.LineBox(
+                    urwid.Filler(
+                        urwid.Padding(
+                            Pile([entry(i, w) for (i, w) in enumerate(widgets)]),
+                            left=2, right=2),
+                        top=1, bottom=1, height=('relative', 100)),
+                    title=title),
+                left=3, right=3),
+            top=1, bottom=1, height=('relative', 100))
+        self._invalidate()
+
+    def remove_my_overlay(self):
+        self.top_w = None
+        self._invalidate()
+
+    def _top_size(self, size, focus):
+        maxcol, maxrow = size # we are a BOX widget
+        maxcol = min(maxcol, 72)
+        fixed_rows = 6 # lines at top and bottom and padding
+        available_stretchy_rows = maxrow - fixed_rows
+        for i, (widget, opt) in enumerate(self.top_w.base_widget.contents):
+            if i == self.top_stretchy_index:
+                stretchy_w = widget.contents()[0][0]
+            elif urwid.FLOW in widget.sizing():
+                rows = widget.rows((maxcol-8,), focus)
+                available_stretchy_rows -= rows
+                fixed_rows += rows
+            else:
+                w_size = widget.pack((), focus)
+                available_stretchy_rows -= w_size[1]
+                fixed_rows += w_size[1]
+        if available_stretchy_rows < 1:
+            1/0
+        stretchy_ideal_rows = stretchy_w.rows((maxcol-8,), focus)
+        if available_stretchy_rows > stretchy_ideal_rows:
+            return (maxcol, stretchy_ideal_rows + fixed_rows)
+        else:
+            return (maxcol, size[1])
+
+    def keypress(self, size, key):
+        if self.top_w is None:
+            return self.bottom_w.keypress(size, key)
+        else:
+            return self.top_w.keypress(self._top_size(size, True), key)
+
+    def render(self, size, focus):
+        bottom_c = self.bottom_w.render(size, focus and self.top_w is None)
+        if self.top_w is None or not bottom_c.cols() or not bottom_c.rows():
+            return urwid.CompositeCanvas(bottom_c)
+
+        top_size = self._top_size(size, focus)
+        top_c = self.top_w.render(top_size, focus)
+        top_c = urwid.CompositeCanvas(top_c)
+        top = (size[1] - top_size[1]) // 2
+        left = (size[0] - top_size[0]) // 2
+        return urwid.CanvasOverlay(top_c, bottom_c, left, top)

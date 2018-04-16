@@ -35,7 +35,7 @@ from subiquitycore.ui.buttons import (
     menu_btn,
     reset_btn,
     )
-from subiquitycore.ui.container import Columns, ListBox, Pile
+from subiquitycore.ui.container import Columns, ListBox, MyOverlay, Pile
 from subiquitycore.ui.utils import button_pile, Color, Padding
 from subiquitycore.view import BaseView
 
@@ -52,22 +52,20 @@ result in the loss of data on the disks selected to be formatted.
 You will not be able to return to this or a previous screen once \
 the installation has started.
 
-Are you sure you want to continue?
-""")
+Are you sure you want to continue?""")
 
-class FilesystemConfirmationView(WidgetWrap):
+class FilesystemConfirmationView:
     def __init__(self, parent, controller):
         self.parent = parent
         self.controller = controller
-        pile = Pile([
-            UrwidPadding(Text(confirmation_text), left=2, right=2),
+        self.widgets = [
+            Text(confirmation_text),
+            Text(""),
             button_pile([
                 cancel_btn(_("No"), on_press=self.cancel),
                 danger_btn(_("Continue"), on_press=self.ok)]),
-            Text(""),
-            ])
-        lb = LineBox(pile, title=_("Confirm destructive action"))
-        super().__init__(lb)
+            ]
+        self.stretchy_index = 0
 
     def ok(self, sender):
         self.controller.finish()
@@ -112,7 +110,8 @@ class FilesystemView(BaseView):
             ('pack', self.footer)])
         if self.model.can_install():
             self.frame.focus_position = 2
-        super().__init__(self.frame)
+        self.my = MyOverlay(self.frame)
+        super().__init__(self.my)
         log.debug('FileSystemView init complete()')
 
     def _build_used_disks(self):
@@ -275,4 +274,5 @@ class FilesystemView(BaseView):
         self.controller.reset()
 
     def done(self, button):
-        self.show_overlay(FilesystemConfirmationView(self, self.controller), min_width=0)
+        fcv = FilesystemConfirmationView(self, self.controller)
+        self.my.show_my_overlay(_("Confirm destructive action"), fcv.widgets, fcv.stretchy_index)
