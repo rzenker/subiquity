@@ -392,9 +392,13 @@ class ScrollBarListBox(FocusTrackingListBox):
     def __init__(self, walker=None):
         def f(char, attr):
             return urwid.AttrMap(urwid.SolidFill(char), attr)
+        self.boxes = [
+            urwid.AttrMap(urwid.SolidFill("\N{FULL BLOCK}"), 'scrollbar_bg'),
+            urwid.AttrMap(urwid.SolidFill("\N{FULL BLOCK}"), 'scrollbar_fg'),
+            ]
         self.bar = Pile([
             ('weight', 1, f("\N{BOX DRAWINGS LIGHT VERTICAL}", 'scrollbar_bg')),
-            ('weight', 1, urwid.AttrMap(urwid.SolidFill("\N{FULL BLOCK}"), 'scrollbar_fg', 'danger_button focus')),
+            ('weight', 1, self.boxes[0]),
             ('weight', 1, f("\N{BOX DRAWINGS LIGHT VERTICAL}", 'scrollbar_bg')),
             ])
         super().__init__(walker)
@@ -451,12 +455,12 @@ class ScrollBarListBox(FocusTrackingListBox):
 
             self.bar.contents[:] = [
                 (self.bar.contents[0][0], self.bar.options('weight', top)),
-                (self.bar.contents[1][0], boxopt),
+                (self.boxes[focus], boxopt),
                 (self.bar.contents[2][0], self.bar.options('weight', bottom)),
                 ]
             canvases = [
                 (super().render((maxcol - 1, maxrow), focus), self.focus_position, True, maxcol - 1),
-                (self.bar.render((1, maxrow), focus), None, False, 1)
+                (self.bar.render((1, maxrow), False), None, False, 1)
                 ]
             return urwid.CanvasJoin(canvases)
 
