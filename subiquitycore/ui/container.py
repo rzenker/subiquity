@@ -394,7 +394,7 @@ class ScrollBarListBox(FocusTrackingListBox):
             return urwid.AttrMap(urwid.SolidFill(char), attr)
         self.bar = Pile([
             ('weight', 1, f("\N{BOX DRAWINGS LIGHT VERTICAL}", 'scrollbar_bg')),
-            ('weight', 1, f("\N{FULL BLOCK}", 'scrollbar_fg')),
+            ('weight', 1, urwid.AttrMap(urwid.SolidFill("\N{FULL BLOCK}"), 'scrollbar_fg', 'danger_button focus')),
             ('weight', 1, f("\N{BOX DRAWINGS LIGHT VERTICAL}", 'scrollbar_bg')),
             ])
         super().__init__(walker)
@@ -456,7 +456,7 @@ class ScrollBarListBox(FocusTrackingListBox):
                 ]
             canvases = [
                 (super().render((maxcol - 1, maxrow), focus), self.focus_position, True, maxcol - 1),
-                (self.bar.render((1, maxrow)), None, False, 1)
+                (self.bar.render((1, maxrow), focus), None, False, 1)
                 ]
             return urwid.CanvasJoin(canvases)
 
@@ -471,7 +471,7 @@ class MyOverlay(urwid.Widget):
         self.top_w = None
         self.top_stretchy_index = None
 
-    def show_my_overlay(self, title, widgets, stretchy_index):
+    def show_my_overlay(self, title, widgets, stretchy_index, focus_index):
         self.top_stretchy_index = stretchy_index
         def entry(i, w):
             if i == stretchy_index:
@@ -483,7 +483,9 @@ class MyOverlay(urwid.Widget):
                 urwid.LineBox(
                     urwid.Filler(
                         urwid.Padding(
-                            Pile([entry(i, w) for (i, w) in enumerate(widgets)]),
+                            Pile(
+                                [entry(i, w) for (i, w) in enumerate(widgets)],
+                                focus_item=widgets[focus_index]),
                             left=2, right=2),
                         top=1, bottom=1, height=('relative', 100)),
                     title=title),
@@ -514,23 +516,27 @@ class MyOverlay(urwid.Widget):
         if available_stretchy_rows < 1:
             1/0
         stretchy_ideal_rows = stretchy_w.rows((maxcol-8,), focus)
+        scrollbar = stretchy_ideal_rows > available_stretchy_rows
         if available_stretchy_rows > stretchy_ideal_rows:
-            return (maxcol, stretchy_ideal_rows + fixed_rows)
+            return (maxcol, stretchy_ideal_rows + fixed_rows), scrollbar
         else:
-            return (maxcol, size[1])
+            return (maxcol, size[1]), scrollbar
 
     def keypress(self, size, key):
         if self.top_w is None:
             return self.bottom_w.keypress(size, key)
         else:
-            return self.top_w.keypress(self._top_size(size, True), key)
+            top_size, scrollbar = self._top_size(size, True)
+            lb = self.top_w.base_widget.contents[self.top_stretchy_index][0]
+            lb._selectable = scrollbar
+            return self.top_w.keypress(top_size, key)
 
     def render(self, size, focus):
         bottom_c = self.bottom_w.render(size, focus and self.top_w is None)
         if self.top_w is None or not bottom_c.cols() or not bottom_c.rows():
             return urwid.CompositeCanvas(bottom_c)
 
-        top_size = self._top_size(size, focus)
+        top_size, scrollbar = self._top_size(size, focus)
         top_c = self.top_w.render(top_size, focus)
         top_c = urwid.CompositeCanvas(top_c)
         top = (size[1] - top_size[1]) // 2

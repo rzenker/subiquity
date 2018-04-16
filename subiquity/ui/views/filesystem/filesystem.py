@@ -275,4 +275,4 @@ class FilesystemView(BaseView):
 
     def done(self, button):
         fcv = FilesystemConfirmationView(self, self.controller)
-        self.my.show_my_overlay(_("Confirm destructive action"), fcv.widgets, fcv.stretchy_index)
+        self.my.show_my_overlay(_("Confirm destructive action"), fcv.widgets, fcv.stretchy_index, 2)
